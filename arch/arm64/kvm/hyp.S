@@ -878,6 +878,23 @@
 
 	ldr	x3, [x2, #KVM_TIMER_CNTVOFF]
 	msr	cntvoff_el2, x3
+
+        adr     x2, vm_voff_old
+        ldr     x2, [x2]
+        cbz     x2, skip_check // first round, fine, store voff
+
+        cmp     x2, x3         // compare old value of cntvoff_el2
+        b.eq    check_fine
+
+        adr     x2, vm_voff_new
+        str     x3, [x2]
+        b       __kvm_hyp_panic
+
+skip_check:
+        adr     x2, vm_voff_old
+        str     x3, [x2]
+
+check_fine:
 	ldr	x2, [x0, #VCPU_TIMER_CNTV_CVAL]
 	msr	cntv_cval_el0, x2
 	isb
@@ -1001,6 +1018,12 @@ __kvm_vcpu_return:
 	ret
 END(__kvm_vcpu_run)
 
+        .align 3
+vm_voff_old:
+        .quad 0
+vm_voff_new:
+        .quad 0
+
 // void __kvm_tlb_flush_vmid_ipa(struct kvm *kvm, phys_addr_t ipa);
 ENTRY(__kvm_tlb_flush_vmid_ipa)
 	dsb	ishst
@@ -1093,9 +1116,9 @@ __kvm_hyp_panic:
 	mrs	x1, spsr_el2
 	mrs	x2, elr_el2
 	mrs	x3, esr_el2
-	mrs	x4, far_el2
-	mrs	x5, hpfar_el2
-	mrs	x6, par_el1
+	adr	x4, vm_voff_old
+	ldp	x4, x5, [x4]
+	mrs	x6, cntvoff_el2
 	mrs	x7, tpidr_el2
 
 	mov	lr, #(PSR_F_BIT | PSR_I_BIT | PSR_A_BIT | PSR_D_BIT |\
@@ -1111,7 +1134,7 @@ __kvm_hyp_panic:
 ENDPROC(__kvm_hyp_panic)
 
 __hyp_panic_str:
-	.ascii	"HYP panic:\nPS:%08x PC:%p ESR:%p\nFAR:%p HPFAR:%p PAR:%p\nVCPU:%p\n\0"
+	.ascii	"HYP panic:\nPS:%08x PC:%p ESR:%p\nvoff_old:%p voff_new:%p cntvoff:%p\nVCPU:%p\n\0"
 
 	.align	2
 

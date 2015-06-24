@@ -329,5 +329,5 @@ void kvm_timer_enable(struct kvm *kvm)
 
 void kvm_timer_init(struct kvm *kvm)
 {
-	kvm->arch.timer.cntvoff = kvm_phys_timer_read();
+	kvm->arch.timer.cntvoff = 0;
 }
